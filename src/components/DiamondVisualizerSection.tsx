@@ -174,7 +174,7 @@ export const DiamondVisualizerSection: React.FC<VisualizerProps> = ({ onSelectDi
               <img
                 src={selectedCut.image}
                 alt={selectedCut.name}
-                className="w-full h-full object-contain filter drop-shadow-[0_0_30px_rgba(56,189,248,0.4)] group-hover:scale-105 transition-transform duration-500"
+                className="w-full h-full object-contain filter drop-shadow-xl group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-sapphire-950/80 via-transparent to-transparent pointer-events-none" />
               
