@@ -45,7 +45,7 @@ const VAULT_ITEMS: VaultItem[] = [
     category: 'BESPOKE ENGAGEMENT',
     title: 'The Custom Bridal Studio',
     subtitle: 'Turning sketches into hand-set platinum heirlooms.',
-    description: 'From your first rough sketch or Pinterest board, we generate millimeter-accurate 3D CAD models, 3D wax resin prints you can try on, and hand-cast in pure 950 platinum or 18K gold.',
+    description: 'From your first rough sketch or Pinterest board, we generate millimeter-accurate precision wax models, 3D prototypes you can try on, and hand-cast in pure 950 platinum or 18K gold.',
     benchmark: 'ONE-OF-A-KIND',
     features: ['3D Wax Resin Mockups', 'Hand-Selected Side Stones', 'Hand-Cut French Pave'],
   },

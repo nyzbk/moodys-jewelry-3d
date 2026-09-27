@@ -16,8 +16,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
   const [, startTransition] = useTransition();
 
   const [, setIsLoaded] = useState(false);
-  const [loadCount, setLoadCount] = useState(0);
-
+  
   // Jack Roberts spring physics: stiffness: 100, damping: 30
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -52,8 +51,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
     firstImg.onload = () => {
       imgs[0] = firstImg;
       setIsLoaded(true);
-      setLoadCount(1);
-      renderFrame(1);
+            renderFrame(1);
 
       let nextIndex = 2;
       const loadBatch = () => {
@@ -65,8 +63,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
           img.src = `/frames/frame_${frameNum}.webp?v=240`;
           img.onload = () => {
             imgs[idx - 1] = img;
-            setLoadCount((prev) => prev + 1);
-            if (currentFrameRef.current === idx) {
+                        if (currentFrameRef.current === idx) {
               renderFrame(idx);
             }
           };
@@ -197,8 +194,8 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
           </div>
 
           <div className="text-right font-mono text-[11px] text-[#9E9AA3]">
-            <div className="text-[#CFAB60] font-semibold">240-FRAME BRILLIANCE CUT</div>
-            <div>BUFFER: {loadCount}/{TOTAL_FRAMES} FRAMES ({Math.round((loadCount / TOTAL_FRAMES) * 100)}%)</div>
+            <div className="text-[#CFAB60] font-semibold">AMERICAN GEM SOCIETY (AGS)</div>
+            <div>GRADUATE GEMOLOGISTS ON-SITE</div>
           </div>
         </div>
 
@@ -267,7 +264,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
               Create your custom heirloom.
             </h2>
             <p className="mt-6 text-[16px] md:text-[19px] text-[#9E9AA3] font-light leading-relaxed font-['Montserrat',sans-serif]">
-              Book an exclusive private salon consultation at Utica Square or Sheridan HQ. Custom 3D CAD modeling, diamond viewing microscopes, and champagne hospitality.
+              Book an exclusive private salon consultation at Utica Square or Sheridan HQ. Custom bridal design, diamond viewing microscopes, and champagne hospitality.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button
