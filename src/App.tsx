@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
+import { HorizontalWorks } from './components/HorizontalWorks';
+import { InteractiveBento } from './components/InteractiveBento';
+import { KineticMarquee } from './components/KineticMarquee';
 import { SignatureWidget } from './components/SignatureWidget';
-import { DiamondVisualizerSection } from './components/DiamondVisualizerSection';
-import { ShowroomsSection } from './components/ShowroomsSection';
-import { VaultSection } from './components/VaultSection';
-import { AtelierSection } from './components/AtelierSection';
-import { Footer } from './components/Footer';
+import { MagneticCTA } from './components/MagneticCTA';
 import { VipAppointmentModal } from './components/VipAppointmentModal';
+import { Footer } from './components/Footer';
 import type { Showroom, VaultPiece } from './data/jewelryData';
 
 export function App() {
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
   const [preselectedShowroom, setPreselectedShowroom] = useState<Showroom | null>(null);
   const [preselectedPiece, setPreselectedPiece] = useState<VaultPiece | null>(null);
-  const [preselectedDiamondSpec, setPreselectedDiamondSpec] = useState<{
+  const [preselectedDiamondSpec] = useState<{
     shape: string;
     carat: number;
     color: string;
@@ -27,35 +27,32 @@ export function App() {
     setIsBookingOpen(true);
   };
 
-  const handleSelectPiece = (piece: VaultPiece) => {
-    setPreselectedPiece(piece);
-    setPreselectedShowroom(null);
-    setIsBookingOpen(true);
-  };
-
-  const handleSelectDiamondSpec = (spec: { shape: string; carat: number; color: string; clarity: string }) => {
-    setPreselectedDiamondSpec(spec);
-    setIsBookingOpen(true);
-  };
-
   const handleCloseBooking = () => {
     setIsBookingOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0D] text-[#FFFFFF] flex flex-col font-['Montserrat'] selection:bg-[#CFAB60] selection:text-[#0A0A0D]">
+    <div className="min-h-screen bg-[#0A0A0D] text-[#F0EBE1] flex flex-col font-['Montserrat',sans-serif] selection:bg-[#CFAB60] selection:text-[#0A0A0D] overflow-x-clip">
       <Navbar onOpenBooking={handleOpenBooking} />
       
       <main className="flex-grow">
-        <Hero onOpenBooking={() => handleOpenBooking()} totalFrames={60} />
+        {/* Section 1: Jack Roberts SOTA 240-Frame Canvas Hero */}
+        <Hero onOpenBooking={() => handleOpenBooking()} />
         
-        {/* Bespoke 75th Anniversary Diamond 4Cs Master Vault Widget */}
-        <SignatureWidget onOpenBooking={() => handleOpenBooking()} />
+        {/* Section 2: Meta AI Pinned Horizontal Scroll Gallery (300vh) */}
+        <HorizontalWorks onOpenBooking={() => handleOpenBooking()} />
 
-        <DiamondVisualizerSection onSelectDiamondSpec={handleSelectDiamondSpec} />
-        <ShowroomsSection onOpenBooking={handleOpenBooking} />
-        <VaultSection onSelectPiece={handleSelectPiece} />
-        <AtelierSection onOpenBooking={() => handleOpenBooking()} />
+        {/* Section 3: Interactive Bento Grid with Live Telemetry */}
+        <InteractiveBento onOpenBooking={() => handleOpenBooking()} />
+
+        {/* Section 4: Kinetic Marquee Ribbon */}
+        <KineticMarquee />
+
+        {/* Bespoke Ring Builder & Carat Visualizer Widget */}
+        <SignatureWidget onOpenBooking={handleOpenBooking} />
+
+        {/* Section 5: Premium Magnetic CTA with Multi-Contact Intelligence */}
+        <MagneticCTA onOpenBooking={() => handleOpenBooking()} />
       </main>
 
       <Footer />

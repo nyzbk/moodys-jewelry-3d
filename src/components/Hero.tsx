@@ -1,130 +1,161 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, Gem, ShieldCheck, ChevronDown, Compass } from 'lucide-react';
+import React, { useEffect, useRef, useState, useTransition } from 'react';
+import { useScroll, useSpring, useTransform, motion } from 'framer-motion';
+import { ArrowUpRight, Compass, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface HeroProps {
   onOpenBooking: () => void;
-  totalFrames?: number;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onOpenBooking, totalFrames = 60 }) => {
+const TOTAL_FRAMES = 240;
+
+export const Hero: React.FC<HeroProps> = ({ onOpenBooking }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagesRef = useRef<HTMLImageElement[]>([]);
   const currentFrameRef = useRef<number>(1);
+  const [, startTransition] = useTransition();
 
-  const [, setCurrentFrame] = useState<number>(1);
-  const [scrollProgress, setScrollProgress] = useState<number>(0);
-  const [activeChapter, setActiveChapter] = useState<string>('4.50ct Flawless Diamond & Platinum Cushion Architecture');
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [, setIsLoaded] = useState(false);
+  const [loadCount, setLoadCount] = useState(0);
 
+  // Jack Roberts spring physics: stiffness: 100, damping: 30
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ['start start', 'end end'],
+  });
+
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.0001,
+  });
+
+  // Staged narrative typography opacities across 240 frames
+  const stage1Opacity = useTransform(smoothProgress, [0, 0.18, 0.26], [1, 1, 0]);
+  const stage1Y = useTransform(smoothProgress, [0, 0.22], [0, -35]);
+
+  const stage2Opacity = useTransform(smoothProgress, [0.26, 0.34, 0.46, 0.54], [0, 1, 1, 0]);
+  const stage2Y = useTransform(smoothProgress, [0.26, 0.34, 0.46, 0.54], [35, 0, 0, -35]);
+
+  const stage3Opacity = useTransform(smoothProgress, [0.54, 0.62, 0.74, 0.82], [0, 1, 1, 0]);
+  const stage3Y = useTransform(smoothProgress, [0.54, 0.62, 0.74, 0.82], [35, 0, 0, -35]);
+
+  const stage4Opacity = useTransform(smoothProgress, [0.82, 0.90, 1], [0, 1, 1]);
+  const stage4Y = useTransform(smoothProgress, [0.82, 0.90], [35, 0]);
+
+  // Frame 1 immediate load + progressive background batching
   useEffect(() => {
-    const total = totalFrames;
-    const imgs: HTMLImageElement[] = new Array(total);
+    const imgs: HTMLImageElement[] = new Array(TOTAL_FRAMES);
 
-    // 1. Immediately fetch Frame 1 (<100ms first paint)
     const firstImg = new Image();
-    firstImg.src = `/frames/frame_0001.webp?v=fast-v2`;
+    firstImg.src = `/frames/frame_0001.webp?v=240`;
     firstImg.onload = () => {
       imgs[0] = firstImg;
       setIsLoaded(true);
+      setLoadCount(1);
       renderFrame(1);
 
-      // 2. Progressive non-blocking preload for frames 2..total in small smooth batches
-      let nextIdx = 2;
-      const loadNextBatch = () => {
-        const batchSize = 6;
-        for (let b = 0; b < batchSize && nextIdx <= total; b++, nextIdx++) {
-          const idx = nextIdx;
+      let nextIndex = 2;
+      const loadBatch = () => {
+        const batchSize = 10;
+        for (let i = 0; i < batchSize && nextIndex <= TOTAL_FRAMES; i++, nextIndex++) {
+          const idx = nextIndex;
           const img = new Image();
-          const frameStr = String(idx).padStart(4, '0');
-          img.src = `/frames/frame_${frameStr}.webp?v=fast-v2`;
+          const frameNum = String(idx).padStart(4, '0');
+          img.src = `/frames/frame_${frameNum}.webp?v=240`;
           img.onload = () => {
+            imgs[idx - 1] = img;
+            setLoadCount((prev) => prev + 1);
             if (currentFrameRef.current === idx) {
               renderFrame(idx);
             }
           };
           imgs[idx - 1] = img;
         }
-        if (nextIdx <= total) {
-          setTimeout(loadNextBatch, 15);
+        if (nextIndex <= TOTAL_FRAMES) {
+          setTimeout(loadBatch, 15);
         }
       };
-      loadNextBatch();
-    };
-    firstImg.onerror = () => {
-      setIsLoaded(true);
+      loadBatch();
     };
     imgs[0] = firstImg;
-    imagesRef.current = imgs;}, [totalFrames]);
+    imagesRef.current = imgs;
+  }, []);
 
+  // Canvas COVER rendering algorithm
   const renderFrame = (frameIndex: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     let img = imagesRef.current[frameIndex - 1];
     if (!img || !img.complete || img.naturalWidth === 0) {
-      for (let offset = 1; offset < totalFrames; offset++) {
-        const prev = imagesRef.current[frameIndex - 1 - offset];
-        if (prev && prev.complete && prev.naturalWidth > 0) {
-          img = prev;
-          break;
-        }
-        const next = imagesRef.current[frameIndex - 1 + offset];
-        if (next && next.complete && next.naturalWidth > 0) {
-          img = next;
+      for (let i = frameIndex - 1; i >= 0; i--) {
+        if (imagesRef.current[i] && imagesRef.current[i].complete && imagesRef.current[i].naturalWidth > 0) {
+          img = imagesRef.current[i];
           break;
         }
       }
     }
-    if (!img || !img.complete) return;
+    if (!img || !img.complete || img.naturalWidth === 0) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const cw = canvas.clientWidth;
+    const ch = canvas.clientHeight;
 
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      ctx.scale(dpr, dpr);
+    if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) {
+      canvas.width = cw * dpr;
+      canvas.height = ch * dpr;
     }
 
-    const imgRatio = 1920 / 1080;
-    const canvasRatio = width / height;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, cw, ch);
 
-    let drawWidth = width;
-    let drawHeight = height;
-    let offsetX = 0;
-    let offsetY = 0;
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const canvasRatio = cw / ch;
+
+    let drawW: number;
+    let drawH: number;
+    let offsetX: number;
+    let offsetY: number;
 
     if (canvasRatio > imgRatio) {
-      drawWidth = width;
-      drawHeight = width / imgRatio;
-      offsetY = (height - drawHeight) / 2;
+      drawW = cw;
+      drawH = cw / imgRatio;
+      offsetX = 0;
+      offsetY = (ch - drawH) / 2;
     } else {
-      drawHeight = height;
-      drawWidth = height * imgRatio;
-      offsetX = (width - drawWidth) / 2;
+      drawW = ch * imgRatio;
+      drawH = ch;
+      offsetX = (cw - drawW) / 2;
+      offsetY = 0;
     }
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-    // Subtle luxury vignette
-    const gradient = ctx.createRadialGradient(
-      width / 2, height / 2, width * 0.25,
-      width / 2, height / 2, Math.max(width, height) * 0.75
-    );
-    gradient.addColorStop(0, 'rgba(3, 7, 18, 0.15)');
-    gradient.addColorStop(0.7, 'rgba(3, 7, 18, 0.45)');
-    gradient.addColorStop(1, 'rgba(3, 7, 18, 0.85)');
-
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+    ctx.restore();
   };
 
+  // Sync canvas with spring physics
+  useEffect(() => {
+    const unsubscribe = smoothProgress.on('change', (v) => {
+      const targetFrame = Math.min(
+        TOTAL_FRAMES,
+        Math.max(1, Math.floor(v * (TOTAL_FRAMES - 1)) + 1)
+      );
+      if (targetFrame !== currentFrameRef.current) {
+        currentFrameRef.current = targetFrame;
+        startTransition(() => {
+          renderFrame(targetFrame);
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [smoothProgress]);
+
+  // Window resize handler
   useEffect(() => {
     const handleResize = () => {
       renderFrame(currentFrameRef.current);
@@ -133,134 +164,141 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking, totalFrames = 60 }) =
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const rect = container.getBoundingClientRect();
-      const scrollableDistance = rect.height - window.innerHeight;
-      const currentScroll = -rect.top;
-
-      let progress = currentScroll / scrollableDistance;
-      progress = Math.max(0, Math.min(1, progress));
-      setScrollProgress(progress);
-
-      const frameNumber = Math.max(1, Math.min(totalFrames, Math.floor(progress * (totalFrames - 1)) + 1));
-      currentFrameRef.current = frameNumber;
-      setCurrentFrame(frameNumber);
-      renderFrame(frameNumber);
-
-      if (progress < 0.25) {
-        setActiveChapter('4.50ct Flawless Diamond & Platinum Cushion Architecture');
-      } else if (progress < 0.50) {
-        setActiveChapter('Optical Light Dispersion & Prismatic Fire');
-      } else if (progress < 0.75) {
-        setActiveChapter('GIA Triple Excellent Facet Symmetry');
-      } else {
-        setActiveChapter('Master Tulsa Atelier Hand-Craftsmanship');
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [totalFrames]);
-
-  const facetCount = 58;
-  const scintillationIndex = Math.round(94 + scrollProgress * 5.9);
-
   return (
-    <section id="diamond-tour" ref={containerRef} className="relative h-[450vh] bg-sapphire-950">
-      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between p-4 sm:p-8 md:p-12">
-        {/* Spatial Canvas */}
+    <div ref={containerRef} className="relative h-[400vh] bg-[#0A0A0D] text-[#F0EBE1]">
+      {/* Sticky 100vh Fullscreen Viewport */}
+      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between">
+        {/* Background Neural Canvas */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none"
         />
 
-        {/* Top Heritage & Gemological Telemetry Header */}
-        <div className="relative z-10 w-full flex items-center justify-between pt-16 sm:pt-20 text-[11px] font-mono tracking-widest text-platinum-300">
-          <div className="flex items-center gap-2 bg-sapphire-950/80 border border-platinum-200/20 px-3.5 py-1.5 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-diamond-fire animate-pulse" />
-            <span className="text-platinum-100 font-semibold uppercase">
-              MOODY’S PRIVATE VAULT // TULSA FLAGSHIP
+        {/* Cinematic Midnight Royal Velvet & Prismatic Diamond Vignette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0D]/95 via-[#0A0A0D]/40 to-[#0A0A0D]/80 pointer-events-none z-10" />
+
+        {/* 12-Column Architectural Hairline Grid Overlay */}
+        <div className="absolute inset-0 pointer-events-none z-15 opacity-[0.08] grid grid-cols-6 md:grid-cols-12 max-w-[1600px] mx-auto px-6">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="border-r border-[#CFAB60] h-full" />
+          ))}
+        </div>
+
+        {/* Top Telemetry Header */}
+        <div className="relative z-20 pt-24 px-6 md:px-12 flex justify-between items-start max-w-[1600px] mx-auto w-full">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#CFAB60]/15 border border-[#CFAB60]/30 text-[#CFAB60] text-[11px] font-mono tracking-widest uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#CFAB60] animate-ping" />
+              TULSA DIAMOND HERITAGE • EST. 1944
+            </span>
+            <span className="hidden md:inline text-[11px] font-mono text-[#9E9AA3]">
+              UTICA SQUARE & SHERIDAN HQ • TULSA, OK
             </span>
           </div>
 
-          <div className="hidden md:flex items-center gap-6 bg-sapphire-950/80 border border-platinum-200/20 px-4 py-1.5 backdrop-blur-md">
-            <span>FACETS: <strong className="text-diamond-fire">{facetCount} FACETS</strong></span>
-            <span>SCINTILLATION: <strong className="text-white">{scintillationIndex}% BRILLIANCE</strong></span>
-            <span>STATUS: {isLoaded ? <strong className="text-emerald-400">GIA CERTIFIED</strong> : <strong className="text-amber-400">CALIBRATING OPTICS...</strong>}</span>
+          <div className="text-right font-mono text-[11px] text-[#9E9AA3]">
+            <div className="text-[#CFAB60] font-semibold">240-FRAME BRILLIANCE CUT</div>
+            <div>BUFFER: {loadCount}/{TOTAL_FRAMES} FRAMES ({Math.round((loadCount / TOTAL_FRAMES) * 100)}%)</div>
           </div>
         </div>
 
-        {/* Center Spatial Narrative */}
-        <div className="relative z-10 my-auto max-w-4xl space-y-6 pointer-events-none">
-          <div className="space-y-4 pointer-events-auto">
-            <div className="inline-flex items-center gap-2 bg-sapphire-900/80 border border-diamond-fire/40 px-3.5 py-1 text-diamond-fire font-sans text-xs tracking-widest uppercase">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Oklahoma’s Premier Diamond House Since 1960</span>
+        {/* Center Dynamic Staged Narrative */}
+        <div className="relative z-20 px-6 md:px-12 max-w-[1600px] mx-auto w-full my-auto pointer-events-none">
+          {/* Stage 1: Oklahoma's Diamond Legacy Since 1944 */}
+          <motion.div
+            style={{ opacity: stage1Opacity, y: stage1Y }}
+            className="max-w-4xl"
+          >
+            <div className="text-[12px] font-mono tracking-[0.25em] text-[#CFAB60] uppercase mb-4 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-[#CFAB60]" />
+              FOUR GENERATIONS OF MASTER JEWELERS
             </div>
-
-            <h1 className="font-serif text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white leading-[1.08] drop-shadow-2xl">
-              For Life’s Most <br />
-              <span className="italic font-normal text-diamond-fire">
-                Profound Milestones.
-              </span>
+            <h1 className="font-['Cormorant_Garamond',serif] text-[48px] md:text-[84px] leading-[0.92] tracking-tight text-[#F0EBE1]">
+              Diamonds that capture a century of love.
             </h1>
-
-            <p className="max-w-2xl text-sm sm:text-base text-platinum-300 font-sans leading-relaxed drop-shadow">
-              Step into an intimate spatial study of light, fire, and master craftsmanship. Six Tulsa showrooms, three generations of trusted family guidance, and certified natural diamonds curated for eternity.
+            <p className="mt-6 text-[16px] md:text-[20px] text-[#9E9AA3] max-w-2xl font-light leading-relaxed font-['Montserrat',sans-serif]">
+              For over 80 years, Oklahoma families have trusted Moody's for life's most transcendent milestones. Hand-selected GIA certified diamonds, Swiss timepieces, and bespoke bridal heirlooms.
             </p>
-          </div>
+          </motion.div>
 
-          {/* Action CTAs */}
-          <div className="flex flex-wrap items-center gap-4 pt-2 pointer-events-auto">
-            <button
-              onClick={onOpenBooking}
-              className="px-8 py-4 bg-gradient-to-r from-sapphire-800 to-sapphire-900 hover:from-sapphire-700 hover:to-sapphire-800 text-white font-sans text-xs uppercase tracking-widest font-semibold border border-diamond-fire/60 hover:border-diamond-fire transition-all duration-300 shadow-xl hover:shadow-diamond-glow flex items-center gap-3"
-            >
-              <Gem className="w-4 h-4 text-diamond-fire" />
-              <span>Reserve Private Salon Viewing</span>
-            </button>
+          {/* Stage 2: Certified GIA Triple-Excellence Diamonds */}
+          <motion.div
+            style={{ opacity: stage2Opacity, y: stage2Y }}
+            className="max-w-3xl"
+          >
+            <div className="text-[12px] font-mono tracking-[0.25em] text-[#CFAB60] uppercase mb-4 flex items-center gap-2">
+              <Compass className="w-3.5 h-3.5 text-[#CFAB60]" />
+              THE TOP 1% OF WORLD DIAMOND PRODUCTION
+            </div>
+            <h2 className="font-['Cormorant_Garamond',serif] text-[44px] md:text-[76px] leading-[0.92] text-[#F0EBE1]">
+              Cut for fire, scintillation & brilliance.
+            </h2>
+            <p className="mt-6 text-[16px] md:text-[19px] text-[#9E9AA3] font-light leading-relaxed font-['Montserrat',sans-serif]">
+              Every loose diamond in our vault is personally graded by Graduate Gemologists for optical symmetry, laser inscriptions, and conflict-free provenance.
+            </p>
+          </motion.div>
 
-            <a
-              href="#diamond-visualizer"
-              className="px-6 py-4 bg-sapphire-950/80 hover:bg-sapphire-900 text-platinum-200 hover:text-white font-sans text-xs uppercase tracking-widest font-medium border border-platinum-200/20 hover:border-platinum-200/40 transition-all duration-300 flex items-center gap-2 backdrop-blur-sm"
-            >
-              <Compass className="w-4 h-4 text-diamond-champagne" />
-              <span>Explore 4Cs Studio</span>
-            </a>
-          </div>
+          {/* Stage 3: Swiss Haute Horology & Master Watchmakers */}
+          <motion.div
+            style={{ opacity: stage3Opacity, y: stage3Y }}
+            className="max-w-3xl"
+          >
+            <div className="text-[12px] font-mono tracking-[0.25em] text-[#CFAB60] uppercase mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#CFAB60]" />
+              AUTHORIZED TIMEPIECE ATELIER
+            </div>
+            <h2 className="font-['Cormorant_Garamond',serif] text-[44px] md:text-[76px] leading-[0.92] text-[#F0EBE1]">
+              Swiss horology & factory-certified service.
+            </h2>
+            <p className="mt-6 text-[16px] md:text-[19px] text-[#9E9AA3] font-light leading-relaxed font-['Montserrat',sans-serif]">
+              Official authorized retailer and service center with in-house CW21-certified watchmakers, genuine Swiss factory tooling, and pressure testing chambers.
+            </p>
+          </motion.div>
+
+          {/* Stage 4: Private Salon Appointments & Custom Design */}
+          <motion.div
+            style={{ opacity: stage4Opacity, y: stage4Y }}
+            className="max-w-3xl pointer-events-auto"
+          >
+            <div className="text-[12px] font-mono tracking-[0.25em] text-[#CFAB60] uppercase mb-4">
+              PRIVATE VAULT CONSULTATION
+            </div>
+            <h2 className="font-['Cormorant_Garamond',serif] text-[44px] md:text-[76px] leading-[0.92] text-[#F0EBE1]">
+              Create your custom heirloom.
+            </h2>
+            <p className="mt-6 text-[16px] md:text-[19px] text-[#9E9AA3] font-light leading-relaxed font-['Montserrat',sans-serif]">
+              Book an exclusive private salon consultation at Utica Square or Sheridan HQ. Custom 3D CAD modeling, diamond viewing microscopes, and champagne hospitality.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <button
+                onClick={onOpenBooking}
+                className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-[#CFAB60] text-[#0A0A0D] font-semibold text-[14px] uppercase tracking-wider transition-all duration-300 hover:bg-[#dfbd72] shadow-lg shadow-[#CFAB60]/25 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>Reserve Private Vault Salon</span>
+                <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+              </button>
+              <a
+                href="tel:9187499999"
+                className="px-6 py-4 rounded-xl border border-[#CFAB60]/30 text-[#F0EBE1] font-mono text-[13px] hover:bg-[#CFAB60]/10 transition-colors"
+              >
+                (918) 749-9999
+              </a>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Bottom Scroll Chapter Progression & Specifications */}
-        <div className="relative z-10 w-full flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 pb-4">
-          {/* Active Spatial Chapter */}
-          <div className="bg-sapphire-950/85 border border-platinum-200/20 p-4 max-w-md backdrop-blur-md space-y-1">
-            <div className="flex items-center justify-between text-[10px] font-mono tracking-widest uppercase text-platinum-400">
-              <span>Dynamic Spatial Phase</span>
-              <span className="text-diamond-fire">{Math.round(scrollProgress * 100)}%</span>
-            </div>
-            <div className="text-xs sm:text-sm font-serif font-semibold text-platinum-100 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-diamond-fire shrink-0" />
-              <span>{activeChapter}</span>
-            </div>
-            <div className="w-full bg-sapphire-900 h-1 mt-2 overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-diamond-fire to-diamond-champagne h-full transition-all duration-200"
-                style={{ width: `${Math.max(5, scrollProgress * 100)}%` }}
-              />
-            </div>
+        {/* Bottom Status Ribbon */}
+        <div className="relative z-20 pb-8 px-6 md:px-12 max-w-[1600px] mx-auto w-full flex justify-between items-end border-t border-[#CFAB60]/15 pt-4 text-[12px] font-mono text-[#9E9AA3]">
+          <div className="flex items-center gap-6">
+            <span className="text-[#CFAB60]">7 TULSA METRO SHOWROOMS</span>
+            <span className="hidden md:inline">UTICA SQUARE • SHERIDAN • WOODLAND HILLS • BROKEN ARROW</span>
           </div>
-
-          {/* Scroll Prompt */}
-          <div className="hidden lg:flex items-center gap-3 text-[11px] font-mono tracking-widest uppercase text-platinum-400 bg-sapphire-950/70 border border-platinum-200/20 px-4 py-2 backdrop-blur-sm">
-            <span>Scroll To Rotate Diamond Facets</span>
-            <ChevronDown className="w-4 h-4 text-diamond-fire animate-bounce" />
+          <div className="flex items-center gap-2">
+            <span>SCROLL TO EXPLORE VAULT</span>
+            <span className="animate-bounce">↓</span>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 };
